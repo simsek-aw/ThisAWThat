@@ -78,6 +78,8 @@ export interface BoardStatus {
   info: string;
 }
 export const getBoardStatus = () => store().get<BoardStatus>("taw:vb:status");
+/** Die letzten Übertragungen, neueste zuerst. */
+export const getBoardLog = async () => (await store().get<BoardStatus[]>("taw:vb:log")) ?? [];
 
 async function post(url: string, headers: Record<string, string>, body: unknown) {
   const res = await fetch(url, {
@@ -88,10 +90,13 @@ async function post(url: string, headers: Record<string, string>, body: unknown)
   return { status: res.status, text: (await res.text()).slice(0, 300) };
 }
 
-async function send(chars: number[][]) {
+// forced: Vestaboards eigenes Limit umgehen – wir drosseln selbst auf 16 s
+const FORCED = process.env.VESTABOARD_FORCED !== "0";
+
+async function send(chars: number[][], note = "") {
   const key = boardKey();
   // Aktuelle Cloud API (Token aus web.vestaboard.com → Developer) …
-  let r = await post(process.env.VESTABOARD_API_URL || "https://cloud.vestaboard.com/", { "X-Vestaboard-Token": key }, { characters: chars });
+  let r = await post(process.env.VESTABOARD_API_URL || "https://cloud.vestaboard.com/", { "X-Vestaboard-Token": key }, FORCED ? { characters: chars, forced: true } : { characters: chars });
   let api = "Cloud API";
   // … ältere Read/Write-Keys laufen noch über rw.vestaboard.com
   if (r.status === 401 || r.status === 403) {
@@ -101,8 +106,13 @@ async function send(chars: number[][]) {
   }
   // 409 = gleicher Inhalt wie auf dem Board → kein Fehler
   const ok = r.status < 400 || r.status === 409;
-  const status: BoardStatus = { ok, at: Date.now(), info: ok ? `${api} ${r.status}` : `Vestaboard ${r.status}: ${r.text}` };
+  const status: BoardStatus = {
+    ok,
+    at: Date.now(),
+    info: `${note}${ok ? `${api} ${r.status}` : `Vestaboard ${r.status}`}${r.text && r.text !== "{}" ? ` · ${r.text}` : ""}`,
+  };
   await store().set("taw:vb:status", status);
+  await store().set("taw:vb:log", [status, ...(await getBoardLog())].slice(0, 10));
   if (!ok) throw new Error(status.info);
 }
 
@@ -113,7 +123,8 @@ const PENDING = "taw:vb:pending";
 async function sendCurrent() {
   const cur = await getCurrent();
   if (!cur) return { ok: false, reason: "Keine aktive Frage" };
-  await send(layout(cur, await getCounts(cur.id)));
+  const c = await getCounts(cur.id);
+  await send(layout(cur, c), `${c.a}:${c.b} → `);
   return { ok: true };
 }
 

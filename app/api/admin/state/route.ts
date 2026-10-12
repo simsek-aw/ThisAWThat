@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { isAdmin, unauthorized } from "@/lib/auth";
 import { getCounts, getCurrent, getHistory, getQueue, ROTATE_HOURS } from "@/lib/game";
-import { boardConfigured, getBoardStatus, layout } from "@/lib/vestaboard";
+import { boardConfigured, getBoardLog, getBoardStatus, layout } from "@/lib/vestaboard";
 import { store, storeKind } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +28,7 @@ export async function GET() {
       env: process.env.VERCEL_ENV || "lokal",
       lastVote: await store().get<number>("taw:lastVote"),
       pending: Boolean(await store().get("taw:vb:dirty")),
+      log: await getBoardLog(),
     },
   });
 }

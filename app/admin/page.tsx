@@ -15,7 +15,7 @@ interface AdminState {
   board: boolean;
   boardStatus: { ok: boolean; at: number; info: string } | null;
   ai: boolean;
-  diag: { storage: string; redisEnv: string[]; tokenVar: string | null; commit: string; env: string; lastVote: number | null; pending: boolean };
+  diag: { storage: string; redisEnv: string[]; tokenVar: string | null; commit: string; env: string; lastVote: number | null; pending: boolean; log: { ok: boolean; at: number; info: string }[] };
 }
 
 const COLORS: Record<number, string> = { 63: "#d6362b", 64: "#f5871f", 65: "#f2c14e", 66: "#3aa55b", 67: "#2f7fd8", 68: "#7b4fc4", 69: "#f4f1ea", 70: "#000" };
@@ -34,6 +34,7 @@ const api = async (url: string, method = "GET", body?: unknown) => {
   return d;
 };
 
+const fmtS = (t: number) => new Date(t).toLocaleTimeString("de-DE");
 const fmt = (t: number) => new Date(t).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 
 function Login({ onDone }: { onDone: () => void }) {
@@ -170,10 +171,16 @@ export default function AdminPage() {
           </span>
           <span className={s.diag.tokenVar ? "ok" : "warn"}>Vestaboard-Token: {s.diag.tokenVar ?? "fehlt"}</span>
           <span className={s.boardStatus ? (s.boardStatus.ok ? "ok" : "warn") : "warn"}>
-            Letzte Übertragung: {s.boardStatus ? `${fmt(s.boardStatus.at)} – ${s.boardStatus.info}` : "noch nie"}
+            Letzte Übertragung: {s.boardStatus ? `${fmtS(s.boardStatus.at)} – ${s.boardStatus.info}` : "noch nie"}
           </span>
-          <span>Letzte Stimme: {s.diag.lastVote ? fmt(s.diag.lastVote) : "keine"}{s.diag.pending ? " · Update wartet" : ""}</span>
+          <span>Letzte Stimme: {s.diag.lastVote ? fmtS(s.diag.lastVote) : "keine"}{s.diag.pending ? " · Update wartet" : ""}</span>
           <span>Version: {s.diag.commit} ({s.diag.env})</span>
+          {s.diag.log.length > 0 && <span>Sendeprotokoll (Stimmen A:B → Antwort):</span>}
+          {s.diag.log.map((l) => (
+            <span key={l.at} className={l.ok ? "" : "warn"}>
+              {fmtS(l.at)} · {l.info}
+            </span>
+          ))}
         </div>
       </section>
 
