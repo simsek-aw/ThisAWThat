@@ -116,6 +116,27 @@ async function send(chars: number[][], note = "") {
   if (!ok) throw new Error(status.info);
 }
 
+/** Liest, was Vestaboard selbst als aktuelle Nachricht gespeichert hat. */
+export async function readBoard() {
+  const key = boardKey();
+  let res = await fetch(process.env.VESTABOARD_API_URL || "https://cloud.vestaboard.com/", { headers: { "X-Vestaboard-Token": key }, cache: "no-store" });
+  if (res.status === 401 || res.status === 403) {
+    res = await fetch("https://rw.vestaboard.com/", { headers: { "X-Vestaboard-Read-Write-Key": key }, cache: "no-store" });
+  }
+  const text = await res.text();
+  let layout: number[][] | null = null;
+  let id: string | null = null;
+  let created: number | null = null;
+  try {
+    const j = JSON.parse(text);
+    const m = j.currentMessage ?? j;
+    layout = typeof m.layout === "string" ? JSON.parse(m.layout) : m.layout ?? null;
+    id = m.id ?? null;
+    created = m.created ?? m.createdAt ?? null;
+  } catch {}
+  return { status: res.status, id, created, layout, raw: layout ? undefined : text.slice(0, 500) };
+}
+
 const LOCK = "taw:vb:lock";
 const DIRTY = "taw:vb:dirty";
 const PENDING = "taw:vb:pending";

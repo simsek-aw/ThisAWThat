@@ -37,6 +37,20 @@ const api = async (url: string, method = "GET", body?: unknown) => {
 const fmtS = (t: number) => new Date(t).toLocaleTimeString("de-DE");
 const fmt = (t: number) => new Date(t).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 
+function Board({ rows }: { rows: number[][] }) {
+  return (
+    <div className="board" aria-label="Vestaboard">
+      {rows.map((row, i) => (
+        <div className="r" key={i}>
+          {row.map((n, j) => (
+            <div className="c" key={j} style={COLORS[n] ? { background: COLORS[n] } : undefined}>{glyph(n)}</div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function Login({ onDone }: { onDone: () => void }) {
   const [pw, setPw] = useState("");
   const [err, setErr] = useState("");
@@ -71,6 +85,7 @@ export default function AdminPage() {
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({ a: "", b: "", prompt: "" });
   const [ideas, setIdeas] = useState<Question[]>([]);
+  const [live, setLive] = useState<{ status: number; id: string | null; created: number | null; layout: number[][] | null; raw?: string } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -132,17 +147,7 @@ export default function AdminPage() {
                 {c?.a} : {c?.b} · seit {fmt(s.current.startedAt)} · Wechsel ~{fmt(s.current.startedAt + s.rotateHours * 3600_000)}
               </span>
             </div>
-            {s.preview && (
-              <div className="board" aria-label="Vestaboard-Vorschau">
-                {s.preview.map((row, i) => (
-                  <div className="r" key={i}>
-                    {row.map((n, j) => (
-                      <div className="c" key={j} style={COLORS[n] ? { background: COLORS[n] } : undefined}>{glyph(n)}</div>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            )}
+            {s.preview && <Board rows={s.preview} />}
           </>
         ) : (
           <p className="small">Noch keine Frage aktiv.</p>
@@ -154,8 +159,19 @@ export default function AdminPage() {
           <button className="btn" disabled={busy || !s.board} onClick={() => run(() => api("/api/admin/push", "POST"), "Ans Vestaboard gesendet")}>
             Aufs Vestaboard senden
           </button>
+          <button className="btn" disabled={busy || !s.board} onClick={() => run(async () => setLive(await api("/api/admin/board")))}>
+            Board auslesen
+          </button>
           <span className={`small ${s.board ? "ok" : "warn"}`}>{s.board ? "● Vestaboard-Token gesetzt" : "● VESTABOARD_TOKEN fehlt"}</span>
         </div>
+        {live && (
+          <>
+            <span className="small">
+              Laut Vestaboard aktuell angezeigt (HTTP {live.status}{live.created ? `, erstellt ${fmtS(live.created)}` : ""}{live.id ? `, ID ${live.id.slice(0, 8)}` : ""}):
+            </span>
+            {live.layout ? <Board rows={live.layout} /> : <span className="small warn">{live.raw || "keine Nachricht"}</span>}
+          </>
+        )}
         {s.boardStatus && (
           <span className={`small ${s.boardStatus.ok ? "ok" : "warn"}`}>
             Letzte Übertragung {fmt(s.boardStatus.at)}: {s.boardStatus.ok ? `OK (${s.boardStatus.info})` : s.boardStatus.info}
