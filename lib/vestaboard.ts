@@ -69,21 +69,46 @@ export function layout(q: Pick<Current, "a" | "b" | "prompt">, c: Counts): numbe
   return rows.slice(0, ROWS);
 }
 
-export const boardConfigured = () => Boolean(process.env.VESTABOARD_RW_KEY);
+const boardKey = () => (process.env.VESTABOARD_TOKEN || process.env.VESTABOARD_RW_KEY || "").trim();
+export const boardConfigured = () => Boolean(boardKey());
+
+export interface BoardStatus {
+  ok: boolean;
+  at: number;
+  info: string;
+}
+export const getBoardStatus = () => store().get<BoardStatus>("taw:vb:status");
+
+async function post(url: string, headers: Record<string, string>, body: unknown) {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...headers },
+    body: JSON.stringify(body),
+  });
+  return { status: res.status, text: (await res.text()).slice(0, 300) };
+}
 
 async function send(chars: number[][]) {
-  const res = await fetch(process.env.VESTABOARD_API_URL || "https://rw.vestaboard.com/", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-Vestaboard-Read-Write-Key": process.env.VESTABOARD_RW_KEY! },
-    body: JSON.stringify(chars),
-  });
+  const key = boardKey();
+  // Aktuelle Cloud API (Token aus web.vestaboard.com → Developer) …
+  let r = await post(process.env.VESTABOARD_API_URL || "https://cloud.vestaboard.com/", { "X-Vestaboard-Token": key }, { characters: chars });
+  let api = "Cloud API";
+  // … ältere Read/Write-Keys laufen noch über rw.vestaboard.com
+  if (r.status === 401 || r.status === 403) {
+    const old = await post("https://rw.vestaboard.com/", { "X-Vestaboard-Read-Write-Key": key }, chars);
+    if (old.status < 400 || old.status === 409) [r, api] = [old, "Read/Write API"];
+    else r = { status: r.status, text: `${r.text} | Read/Write API ${old.status}: ${old.text}` };
+  }
   // 409 = gleicher Inhalt wie auf dem Board → kein Fehler
-  if (!res.ok && res.status !== 409) throw new Error(`Vestaboard ${res.status}: ${await res.text()}`);
+  const ok = r.status < 400 || r.status === 409;
+  const status: BoardStatus = { ok, at: Date.now(), info: ok ? `${api} ${r.status}` : `Vestaboard ${r.status}: ${r.text}` };
+  await store().set("taw:vb:status", status);
+  if (!ok) throw new Error(status.info);
 }
 
 /** Aktuellen Stand sofort aufs Board schicken. */
 export async function pushNow() {
-  if (!boardConfigured()) return { ok: false, reason: "VESTABOARD_RW_KEY fehlt" };
+  if (!boardConfigured()) return { ok: false, reason: "VESTABOARD_TOKEN fehlt" };
   const cur = await getCurrent();
   if (!cur) return { ok: false, reason: "Keine aktive Frage" };
   await store().set("taw:vb:lock", Date.now(), { px: MIN_INTERVAL });

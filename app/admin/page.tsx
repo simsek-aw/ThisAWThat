@@ -13,6 +13,7 @@ interface AdminState {
   history: Archived[];
   rotateHours: number;
   board: boolean;
+  boardStatus: { ok: boolean; at: number; info: string } | null;
   ai: boolean;
 }
 
@@ -151,8 +152,13 @@ export default function AdminPage() {
           <button className="btn" disabled={busy || !s.board} onClick={() => run(() => api("/api/admin/push", "POST"), "Ans Vestaboard gesendet")}>
             Aufs Vestaboard senden
           </button>
-          <span className={`small ${s.board ? "ok" : "warn"}`}>{s.board ? "● Vestaboard verbunden" : "● VESTABOARD_RW_KEY fehlt"}</span>
+          <span className={`small ${s.board ? "ok" : "warn"}`}>{s.board ? "● Vestaboard-Token gesetzt" : "● VESTABOARD_TOKEN fehlt"}</span>
         </div>
+        {s.boardStatus && (
+          <span className={`small ${s.boardStatus.ok ? "ok" : "warn"}`}>
+            Letzte Übertragung {fmt(s.boardStatus.at)}: {s.boardStatus.ok ? `OK (${s.boardStatus.info})` : s.boardStatus.info}
+          </span>
+        )}
       </section>
 
       <section className="card">

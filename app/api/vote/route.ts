@@ -3,6 +3,9 @@ import { getCounts, getCurrent, vote, type Choice } from "@/lib/game";
 import { voterId } from "@/lib/voter";
 import { scheduleBoardUpdate } from "@/lib/vestaboard";
 
+// Verzögertes Board-Update (bis ~17 s) muss in die Laufzeit passen
+export const maxDuration = 60;
+
 export async function POST(req: Request) {
   const { id, choice } = (await req.json().catch(() => ({}))) as { id?: string; choice?: Choice };
   if (choice !== "a" && choice !== "b") return NextResponse.json({ error: "Ungültige Wahl" }, { status: 400 });

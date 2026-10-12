@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { isAdmin, unauthorized } from "@/lib/auth";
 import { getCounts, getCurrent, getHistory, getQueue, ROTATE_HOURS } from "@/lib/game";
-import { boardConfigured, layout } from "@/lib/vestaboard";
+import { boardConfigured, getBoardStatus, layout } from "@/lib/vestaboard";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +17,7 @@ export async function GET() {
     history: (await getHistory()).slice(0, 20),
     rotateHours: ROTATE_HOURS,
     board: boardConfigured(),
+    boardStatus: await getBoardStatus(),
     ai: Boolean(process.env.ANTHROPIC_API_KEY),
   });
 }

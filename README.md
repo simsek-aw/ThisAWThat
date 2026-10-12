@@ -16,7 +16,7 @@ CURRYWURST              7
      JETZT VOTEN!          ← VESTABOARD_FOOTER
 ```
 
-Die Read/Write-API erlaubt nur ca. 1 Nachricht pro 15 s. Die erste Stimme geht sofort raus, alles danach wird gesammelt und ~16 s später mit dem neuesten Stand gesendet.
+Die Vestaboard-API erlaubt nur ca. 1 Nachricht pro 15 s. Die erste Stimme geht sofort raus, alles danach wird gesammelt und ~16 s später mit dem neuesten Stand gesendet.
 
 ## Fragen-Wechsel
 
@@ -32,7 +32,7 @@ Ein Vercel-Cron läuft täglich um 06:00 UTC (`vercel.json`) und wechselt, sobal
 2. **Storage → Marketplace → Upstash Redis** anlegen und mit dem Projekt verbinden (setzt `KV_REST_API_URL` / `KV_REST_API_TOKEN` automatisch).
 3. Environment Variables setzen (siehe `.env.example`):
    - `ADMIN_PASSWORD` – Pflicht
-   - `VESTABOARD_RW_KEY` – Vestaboard Web-App → Settings → Developer → Read/Write API aktivieren
+   - `VESTABOARD_TOKEN` – web.vestaboard.com → Developer → Cloud API Token (alter Read/Write-Key unter `VESTABOARD_RW_KEY` geht auch)
    - `VESTABOARD_FOOTER` – z. B. die Kurz-URL zur Seite
    - `CRON_SECRET` – beliebiger langer Zufallswert (Vercel schickt ihn beim Cron mit)
    - `ANTHROPIC_API_KEY` – optional, für KI-Fragen
