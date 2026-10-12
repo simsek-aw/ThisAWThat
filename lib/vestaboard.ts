@@ -1,4 +1,4 @@
-import { waitUntil } from "@vercel/functions";
+import { after } from "next/server";
 import { store } from "./store";
 import { getCounts, getCurrent, type Counts, type Current } from "./game";
 
@@ -106,42 +106,54 @@ async function send(chars: number[][]) {
   if (!ok) throw new Error(status.info);
 }
 
-/** Aktuellen Stand sofort aufs Board schicken. */
-export async function pushNow() {
-  if (!boardConfigured()) return { ok: false, reason: "VESTABOARD_TOKEN fehlt" };
+const LOCK = "taw:vb:lock";
+const DIRTY = "taw:vb:dirty";
+const PENDING = "taw:vb:pending";
+
+async function sendCurrent() {
   const cur = await getCurrent();
   if (!cur) return { ok: false, reason: "Keine aktive Frage" };
-  await store().set("taw:vb:lock", Date.now(), { px: MIN_INTERVAL });
   await send(layout(cur, await getCounts(cur.id)));
   return { ok: true };
 }
 
+/** Aktuellen Stand sofort aufs Board schicken (Admin, Fragenwechsel). */
+export async function pushNow() {
+  if (!boardConfigured()) return { ok: false, reason: "VESTABOARD_TOKEN fehlt" };
+  await store().set(LOCK, Date.now(), { px: MIN_INTERVAL });
+  await store().del(DIRTY);
+  return sendCurrent();
+}
+
 /**
- * Nach jeder Stimme aufrufen: schickt sofort, oder – wenn gerade erst gesendet wurde –
- * plant genau ein Update nach Ablauf des Limits (mit dem dann neuesten Stand).
+ * Schickt den Stand, wenn es seit dem letzten Senden neue Stimmen gab und das
+ * API-Limit es zulässt. Wird bei jeder Stimme und bei jedem Abruf der Seite aufgerufen
+ * (die Seite fragt alle 3 s nach) – so braucht es keine Hintergrund-Timer.
  */
+export async function flushBoard() {
+  if (!boardConfigured()) return;
+  const s = store();
+  if (!(await s.get(DIRTY))) return;
+  if (!(await s.set(LOCK, Date.now(), { nx: true, px: MIN_INTERVAL }))) return;
+  await s.del(DIRTY);
+  try {
+    await sendCurrent();
+  } catch (e) {
+    console.error("Vestaboard:", e);
+  }
+}
+
+/** Nach jeder Stimme aufrufen. */
 export async function scheduleBoardUpdate() {
   if (!boardConfigured()) return;
   const s = store();
-  const now = Date.now();
-  if (await s.set("taw:vb:lock", now, { nx: true, px: MIN_INTERVAL })) {
-    const cur = await getCurrent();
-    if (cur) waitUntil(getCounts(cur.id).then((c) => send(layout(cur, c))).catch(console.error));
-    return;
+  await s.set(DIRTY, Date.now());
+  await flushBoard();
+  // Falls gerade niemand die Seite offen hat: einmal nach Ablauf des Limits nachsenden
+  if (await s.set(PENDING, 1, { nx: true, px: MIN_INTERVAL + 2_000 })) {
+    after(async () => {
+      await new Promise((r) => setTimeout(r, MIN_INTERVAL + 1_000));
+      await flushBoard();
+    });
   }
-  const lockedAt = (await s.get<number>("taw:vb:lock")) ?? now;
-  const wait = Math.max(1000, lockedAt + MIN_INTERVAL - now + 500);
-  if (!(await s.set("taw:vb:pending", 1, { nx: true, px: wait + 15_000 }))) return;
-  waitUntil(
-    (async () => {
-      await new Promise((r) => setTimeout(r, wait));
-      try {
-        await pushNow();
-      } catch (e) {
-        console.error(e);
-      } finally {
-        await s.del("taw:vb:pending");
-      }
-    })(),
-  );
 }
