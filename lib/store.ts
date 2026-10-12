@@ -11,9 +11,20 @@ export interface Store {
   hgetall<T>(key: string): Promise<Record<string, T> | null>;
 }
 
+// Vercel-Integrationen setzen je nach Einstellung auch Präfixe (z. B. STORAGE_KV_REST_API_URL)
+const env = (suffix: string) => {
+  const k = Object.keys(process.env).find((k) => k === suffix || k.endsWith("_" + suffix));
+  return k ? process.env[k] : undefined;
+};
+const redisUrl = () => env("KV_REST_API_URL") || env("UPSTASH_REDIS_REST_URL");
+const redisToken = () => env("KV_REST_API_TOKEN") || env("UPSTASH_REDIS_REST_TOKEN");
+
+/** "upstash" oder "memory" (nur lokal sinnvoll – auf Vercel gehen Daten verloren). */
+export const storeKind = () => (redisUrl() && redisToken() ? "upstash" : "memory");
+
 function upstash(): Store | null {
-  const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+  const url = redisUrl();
+  const token = redisToken();
   if (!url || !token) return null;
   const r = new Redis({ url, token });
   return {

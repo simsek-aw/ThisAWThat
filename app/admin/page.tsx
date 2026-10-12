@@ -15,6 +15,7 @@ interface AdminState {
   board: boolean;
   boardStatus: { ok: boolean; at: number; info: string } | null;
   ai: boolean;
+  diag: { storage: string; redisEnv: string[]; tokenVar: string | null; commit: string; env: string; lastVote: number | null; pending: boolean };
 }
 
 const COLORS: Record<number, string> = { 63: "#d6362b", 64: "#f5871f", 65: "#f2c14e", 66: "#3aa55b", 67: "#2f7fd8", 68: "#7b4fc4", 69: "#f4f1ea", 70: "#000" };
@@ -159,6 +160,21 @@ export default function AdminPage() {
             Letzte Übertragung {fmt(s.boardStatus.at)}: {s.boardStatus.ok ? `OK (${s.boardStatus.info})` : s.boardStatus.info}
           </span>
         )}
+      </section>
+
+      <section className="card">
+        <h2>Diagnose</h2>
+        <div className="list small">
+          <span className={s.diag.storage === "upstash" ? "ok" : "warn"}>
+            Speicher: {s.diag.storage === "upstash" ? "Upstash Redis ✓" : `NUR ARBEITSSPEICHER – Upstash nicht verbunden! Gefundene Variablen: ${s.diag.redisEnv.join(", ") || "keine"}`}
+          </span>
+          <span className={s.diag.tokenVar ? "ok" : "warn"}>Vestaboard-Token: {s.diag.tokenVar ?? "fehlt"}</span>
+          <span className={s.boardStatus ? (s.boardStatus.ok ? "ok" : "warn") : "warn"}>
+            Letzte Übertragung: {s.boardStatus ? `${fmt(s.boardStatus.at)} – ${s.boardStatus.info}` : "noch nie"}
+          </span>
+          <span>Letzte Stimme: {s.diag.lastVote ? fmt(s.diag.lastVote) : "keine"}{s.diag.pending ? " · Update wartet" : ""}</span>
+          <span>Version: {s.diag.commit} ({s.diag.env})</span>
+        </div>
       </section>
 
       <section className="card">

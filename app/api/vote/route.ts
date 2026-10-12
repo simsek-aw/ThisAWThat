@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCounts, getCurrent, vote, type Choice } from "@/lib/game";
 import { voterId } from "@/lib/voter";
+import { store } from "@/lib/store";
 import { scheduleBoardUpdate } from "@/lib/vestaboard";
 
 // Verzögertes Board-Update (bis ~17 s) muss in die Laufzeit passen
@@ -13,6 +14,9 @@ export async function POST(req: Request) {
   if (!q || q.id !== id) return NextResponse.json({ error: "Frage ist nicht mehr aktiv" }, { status: 409 });
 
   const vid = (await voterId(true))!;
-  if (await vote(q.id, vid, choice)) await scheduleBoardUpdate();
+  if (await vote(q.id, vid, choice)) {
+    await store().set("taw:lastVote", Date.now());
+    await scheduleBoardUpdate();
+  }
   return NextResponse.json({ counts: await getCounts(q.id), myVote: choice });
 }
